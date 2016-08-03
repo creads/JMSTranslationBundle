@@ -55,6 +55,16 @@ function JMSTranslationManager(updateMessagePath, isWritable)
         }
     };
 
+    this.search  = {
+        selector: '#config input',
+        handlers: function(JMS)
+        {
+            $(JMS.search.selector).change(function() {
+                $(this).parent().submit();
+            });
+        }
+    };
+
     this.truncator = {
         selector: '.truncate-left',
         side:     'left',
@@ -174,6 +184,7 @@ function JMSTranslationManager(updateMessagePath, isWritable)
         var JMS = this;
         $(document).ready(function(event) {
             JMS.domain.handlers(JMS);
+            JMS.search.handlers(JMS);
             JMS.truncator.truncate(JMS);
             if(JMS.isWritable)
             {
