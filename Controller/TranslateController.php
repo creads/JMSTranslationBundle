@@ -75,8 +75,8 @@ class TranslateController
 
         $domains = array_keys($files);
 
-        $requestedDomain = $this->request->query->get('domain');
-        $filter = $this->request->query->get('filter');
+        $requestedDomain = $request->query->get('domain');
+        $filter = $request->query->get('filter');
         $fileResults = array();
 
         // Here is the new case, where we have to parse all available domains properly
@@ -84,7 +84,7 @@ class TranslateController
         if( $requestedDomain && $requestedDomain == "All" ) { // Here we are in a new specific case were we want to get all messages
             // Find all locales
             $allLocales = array();
-            $locale = $this->request->query->get('locale');
+            $locale = $request->query->get('locale');
 
             foreach( $files as $domain => $localeData ) {
                 $tempLocales = array_keys($localeData);
@@ -99,7 +99,7 @@ class TranslateController
                 if (!$locale) // locale not set, which means that we have to select the first available
                     $locale = reset($locales);
 
-                $data = $this->getFileDataFor($files,$domain,$locale,$locales);
+                $data = $this->getFileDataFor($request, $files,$domain,$locale,$locales);
                 if( $data ) {
                     $fileResults[$domain] = $data;
                 }
@@ -135,7 +135,7 @@ class TranslateController
             $locale = reset($locales);
         }
 
-        $data = $this->getFileDataFor($files,$domain,$locale,$locales,true);
+        $data = $this->getFileDataFor($request, $files,$domain,$locale,$locales,true);
         $fileResults = array($domain=>$data);
         array_unshift($domains , 'All');
 
@@ -155,9 +155,9 @@ class TranslateController
     /**
      * Utility function to get data from the file and to avoid code duplication
      */
-    protected function getFileDataFor($files,$domain,$locale, $locales,$force=false) {
+    protected function getFileDataFor(Request $request,$files,$domain,$locale, $locales,$force=false) {
 
-        if( (!$filter = $this->request->query->get('filter')) ) {
+        if( (!$filter = $request->query->get('filter')) ) {
             $filter = null;
         }
 
