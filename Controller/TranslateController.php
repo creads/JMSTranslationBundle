@@ -74,6 +74,55 @@ class TranslateController
         }
 
         $domains = array_keys($files);
+
+        $requestedDomain = $this->request->query->get('domain');
+        $filter = $this->request->query->get('filter');
+        $fileResults = array();
+
+        // Here is the new case, where we have to parse all available domains properly
+        // And to search for messages if exist
+        if( $requestedDomain && $requestedDomain == "All" ) { // Here we are in a new specific case were we want to get all messages
+            // Find all locales
+            $allLocales = array();
+            $locale = $this->request->query->get('locale');
+
+            foreach( $files as $domain => $localeData ) {
+                $tempLocales = array_keys($localeData);
+                $allLocales = array_unique(array_merge($allLocales,$tempLocales));
+
+                $locales = array_keys($files[$domain]);
+                natsort($locales);
+
+                if( !isset($files[$domain][$locale]) && $locale ) // Locale asked but not found
+                    continue;
+
+                if (!$locale) // locale not set, which means that we have to select the first available
+                    $locale = reset($locales);
+
+                $data = $this->getFileDataFor($files,$domain,$locale,$locales);
+                if( $data ) {
+                    $fileResults[$domain] = $data;
+                }
+            }
+
+            $locales = $allLocales;
+            natsort($locales);
+
+            $domain = $requestedDomain;
+            array_unshift($domains , 'All');
+            return array(
+                'selectedConfig' => $config,
+                'configs' => $configs,
+                'selectedDomain' => $domain,
+                'domains' => $domains,
+                'selectedLocale' => $locale,
+                'locales' => $locales,
+                'sourceLanguage' => $this->sourceLanguage,
+                'filter' => $filter,
+                'files' => $fileResults,
+            );
+        }
+
         if ((!$domain = $request->query->get('domain')) || !isset($files[$domain])) {
             $domain = reset($domains);
         }
@@ -86,16 +135,32 @@ class TranslateController
             $locale = reset($locales);
         }
 
-        $catalogue = $this->loader->loadFile(
-            $files[$domain][$locale][1]->getPathName(),
-            $files[$domain][$locale][0],
-            $locale,
-            $domain
-        );
+        $data = $this->getFileDataFor($files,$domain,$locale,$locales,true);
+        $fileResults = array($domain=>$data);
+        array_unshift($domains , 'All');
 
-        // create alternative messages
-        // TODO: We should probably also add these to the XLIFF file for external translators,
-        //       and the specification already supports it
+        return array(
+            'selectedConfig' => $config,
+            'configs' => $configs,
+            'selectedDomain' => $domain,
+            'domains' => $domains,
+            'selectedLocale' => $locale,
+            'locales' => $locales,
+            'sourceLanguage' => $this->sourceLanguage,
+            'filter' => $filter,
+            'files' => $fileResults,
+        );
+    }
+
+    /**
+     * Utility function to get data from the file and to avoid code duplication
+     */
+    protected function getFileDataFor($files,$domain,$locale, $locales,$force=false) {
+
+        if( (!$filter = $this->request->query->get('filter')) ) {
+            $filter = null;
+        }
+
         $alternativeMessages = array();
         foreach ($locales as $otherLocale) {
             if ($locale === $otherLocale) {
@@ -113,8 +178,15 @@ class TranslateController
             }
         }
 
+        $catalogue = $this->loader->loadFile(
+            $files[$domain][$locale][1]->getPathName(),
+            $files[$domain][$locale][0],
+            $locale,
+            $domain
+        );
+
         $newMessages = $existingMessages = array();
-        foreach ($catalogue->getDomain($domain)->all() as $id => $message) {
+        foreach ($catalogue->searchDomain($domain,$filter)->all() as $id => $message) {
             if ($message->isNew()) {
                 $newMessages[$id] = $message;
                 continue;
@@ -123,20 +195,19 @@ class TranslateController
             $existingMessages[$id] = $message;
         }
 
-        return array(
-            'selectedConfig' => $config,
-            'configs' => $configs,
-            'selectedDomain' => $domain,
-            'domains' => $domains,
-            'selectedLocale' => $locale,
-            'locales' => $locales,
-            'format' => $files[$domain][$locale][0],
-            'newMessages' => $newMessages,
-            'existingMessages' => $existingMessages,
-            'alternativeMessages' => $alternativeMessages,
-            'isWriteable' => is_writeable($files[$domain][$locale][1]),
-            'file' => (string) $files[$domain][$locale][1],
-            'sourceLanguage' => $this->sourceLanguage,
-        );
+        if( count($existingMessages) > 0 || count($newMessages) > 0 || $force ) {
+            return array(
+                'locales' => $locales,
+                'domain' => $domain,
+                'format' => $files[$domain][$locale][0],
+                'newMessages' => $newMessages,
+                'existingMessages' => $existingMessages,
+                'alternativeMessages' => $alternativeMessages,
+                'isWriteable' => is_writeable($files[$domain][$locale][1]),
+                'file' => (string) $files[$domain][$locale][1],
+            );
+        }
+
+        return null;
     }
 }
